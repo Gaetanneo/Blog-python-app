@@ -27,7 +27,7 @@ services:
     ports:
       - 3306:3306
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ppassword"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "gaetan", "-ppassword"]
       interval: 5s
       retries: 5
       start_period: 10s

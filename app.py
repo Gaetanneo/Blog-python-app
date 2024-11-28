@@ -8,7 +8,7 @@ import os;
 app = Flask(__name__)
 
 app.debug = True
-db_username = os.getenv('MYSQL_USER', 'root')
+db_username = os.getenv('MYSQL_USER', 'gaetan')
 db_password = os.getenv('MYSQL_PASSWORD', 'password')
 db_mysql_host = os.getenv('MYSQL_HOST', 'localhost')
 app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql://{db_username}:{db_password}@{db_mysql_host}/flask_articles'
