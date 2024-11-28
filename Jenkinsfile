@@ -100,8 +100,7 @@ pipeline {
             sh '''
                 echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
                 docker push ${DOCKER_IMAGE_FLASK}:${DOCKER_TAG}
-                docker push ${DOCKER_IMAGE_FLASK}:${DOCKER_TAG}
-                docker tag mysql:8.0 ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
+                docker tag mysql:latest ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
                 docker push ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
             '''
         }
