@@ -18,10 +18,7 @@ services:
 
   mysql:
     environment:
-      - MYSQL_USER_PASSWORD=password
-
-      - MYSQL_USER=gaetan
-
+      - MYSQL_ROOT_PASSWORD=password
     volumes:
       - ./query:/docker-entrypoint-initdb.d
       - two-tier:/var/lib/mysql
@@ -30,7 +27,7 @@ services:
     ports:
       - 3306:3306
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER}", "-p${MYSQL_USER_PASSWORD}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ppassword"]
       interval: 5s
       retries: 5
       start_period: 10s
