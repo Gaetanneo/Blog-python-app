@@ -21,17 +21,17 @@ pipeline {
             }
         }
 
-        stage('Clean Environment') {
-            steps {
-                script {
-                    // Clean up any existing containers and volumes
-                    sh '''
-                        docker-compose down --volumes --remove-orphans
-                        docker system prune -f
-                    '''
-                }
-            }
-        }
+        // stage('Clean Environment') {
+        //     steps {
+        //         script {
+        //             // Clean up any existing containers and volumes
+        //             sh '''
+        //                 docker-compose down --volumes --remove-orphans
+        //                 docker system prune -f
+        //             '''
+        //         }
+        //     }
+        // }
 
         stage('Run Docker Compose Build') {
             steps {
