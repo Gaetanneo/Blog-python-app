@@ -54,7 +54,7 @@ pipeline {
                     sh '''
                         # Wait for MySQL to be ready
                         echo "Waiting for MySQL to be ready..."
-                        for i in $(seq 1 30); do
+                        for i in $(seq 1 10); do
                             if docker-compose exec -T mysqldb mysqladmin ping -h localhost --silent; then
                                 echo "MySQL is ready!"
                                 break

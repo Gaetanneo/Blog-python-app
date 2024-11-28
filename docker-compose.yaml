@@ -18,7 +18,8 @@ services:
 
   mysql:
     environment:
-      - MYSQL_PASSWORD=password
+      - MYSQL_USER_PASSWORD=password
+
       - MYSQL_USER=gaetan
 
     volumes:
@@ -29,7 +30,7 @@ services:
     ports:
       - 3306:3306
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "gaetan", "-ppassword"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER}", "-p${MYSQL_USER_PASSWORD}"]
       interval: 5s
       retries: 5
       start_period: 10s
