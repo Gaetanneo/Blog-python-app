@@ -109,20 +109,17 @@ pipeline {
         }
 
         stage('Validate Kubernetes Connection') {
-            steps {
-                withKubeConfig([credentialsId: 'jenkins-secret']) {
-                    script {
+    steps {
+        withCredentials([file(credentialsId: 'jenkins-secret', variable: 'KUBECONFIG')]) {
+            script {
                 try {
                     // Check cluster connectivity
-                    sh 'kubectl cluster-info'
-                    
-                    // Check nodes status
-                    sh 'kubectl get nodes'
-                    
-                    // Create namespace if not exists
-                    sh """
+                    sh '''
+                        export KUBECONFIG=${KUBECONFIG}
+                        kubectl cluster-info
+                        kubectl get nodes
                         kubectl get namespace ${NAMESPACE} || kubectl create namespace ${NAMESPACE}
-                    """
+                    '''
                 } catch (Exception e) {
                     error "Failed to connect to Kubernetes cluster: ${e.message}"
                 }
@@ -131,53 +128,51 @@ pipeline {
     }
 }
 
-
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                withKubeConfig([credentialsId: 'jenkins-secret']) {
-                    script {
-                        try {
-                            // Apply all Kubernetes configurations
-                            sh """
-                                kubectl apply -f k8s/deployment-flask.yml -n ${NAMESPACE}
-                                kubectl apply -f k8s/deployment-mysql.yml -n ${NAMESPACE}
-                                kubectl apply -f k8s/flask-service.yml -n ${NAMESPACE}
-                                kubectl apply -f k8s/mysql-service.yml -n ${NAMESPACE}
-                                kubectl apply -f k8s/persistent-volume.yml -n ${NAMESPACE}
-                                kubectl apply -f k8s/pvc-claim.yml -n ${NAMESPACE}
-                                kubectl apply -f k8s/sql-inject-config.yml -n ${NAMESPACE}
-                                kubectl apply -f k8s/storage.yml -n ${NAMESPACE}
-                            """
-                    
-                            // Wait for deployments to be ready
-                            sh """
-                                kubectl rollout status deployment/flask-app -n ${NAMESPACE} --timeout=300s
-                                kubectl rollout status deployment/mysql -n ${NAMESPACE} --timeout=300s
-                            """
-                        } catch (Exception e) {
-                            error "Deployment failed: ${e.message}"
-                        }
-                    }
+stage('Deploy to Kubernetes') {
+    steps {
+        withCredentials([file(credentialsId: 'jenkins-secret', variable: 'KUBECONFIG')]) {
+            script {
+                try {
+                    sh '''
+                        export KUBECONFIG=${KUBECONFIG}
+                        
+                        # Apply Kubernetes configurations
+                        kubectl apply -f k8s/deployment-flask.yml -n ${NAMESPACE}
+                        kubectl apply -f k8s/deployment-mysql.yml -n ${NAMESPACE}
+                        kubectl apply -f k8s/flask-service.yml -n ${NAMESPACE}
+                        kubectl apply -f k8s/mysql-service.yml -n ${NAMESPACE}
+                        kubectl apply -f k8s/persistent-volume.yml -n ${NAMESPACE}
+                        kubectl apply -f k8s/pvc-claim.yml -n ${NAMESPACE}
+                        kubectl apply -f k8s/sql-inject-config.yml -n ${NAMESPACE}
+                        kubectl apply -f k8s/storage.yml -n ${NAMESPACE}
+                        
+                        # Wait for deployments
+                        kubectl rollout status deployment/flask-app -n ${NAMESPACE} --timeout=300s
+                        kubectl rollout status deployment/mysql -n ${NAMESPACE} --timeout=300s
+                    '''
+                } catch (Exception e) {
+                    error "Deployment failed: ${e.message}"
                 }
             }
         }
+    }
+}
 
-        stage('Verify Deployment') {
-            steps {
-                withKubeConfig([credentialsId: 'jenkins-secret']) {
-                    script {
-                        sh """
-                            echo 'Checking pod status...'
-                            kubectl get pods -n ${NAMESPACE}
-                            echo 'Checking service status...'
-                            kubectl get services -n ${NAMESPACE}
-                        """
-                    }
-                }
+stage('Verify Deployment') {
+    steps {
+        withCredentials([file(credentialsId: 'jenkins-secret', variable: 'KUBECONFIG')]) {
+            script {
+                sh '''
+                    export KUBECONFIG=${KUBECONFIG}
+                    echo 'Checking pod status...'
+                    kubectl get pods -n ${NAMESPACE}
+                    echo 'Checking service status...'
+                    kubectl get services -n ${NAMESPACE}
+                '''
             }
         }
-
+    }
+}
     }       
     
 
