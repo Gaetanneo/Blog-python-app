@@ -76,10 +76,10 @@ pipeline {
                         docker-compose ps
                         
                         echo "MySQL Container Logs:"
-                        docker-compose logs mysqldb
+                        docker-compose logs mysql
                         
                         echo "Flask Container Logs:"
-                        docker-compose logs blog-app
+                        docker-compose logs flask
                         
                         echo "Checking MySQL Connection..."
                         docker-compose exec -T mysql-service mysqladmin status -h localhost || exit 1
