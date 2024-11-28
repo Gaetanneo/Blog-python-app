@@ -109,78 +109,62 @@ pipeline {
             }
         }
         
-        stage('Push Docker Images') {
-            steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: DOCKER_REGISTRY_CREDENTIALS, 
-                                                    usernameVariable: 'DOCKER_USERNAME', 
-                                                    passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh '''
-                            echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-                            docker tag mysql:8.0 ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
-                            
-                            docker push ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
-                        '''
-                    }
-                }
-            }
-        }
 
-        stage('Deploy to Kubernetes') {
-            steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'aws-credentials-id',
-                                                    usernameVariable: 'AWS_ACCESS_KEY_ID',
-                                                    passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                        sh '''
-                            # Verify kubeconfig
-                            ls -l $KUBE_CONFIG
-                            head -n 20 $KUBE_CONFIG
+//         stage('Deploy to Kubernetes') {
+//             steps {
+//                 script {
+//                     withCredentials([usernamePassword(credentialsId: 'aws-credentials-id',
+//                                                     usernameVariable: 'AWS_ACCESS_KEY_ID',
+//                                                     passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+//                         sh '''
+//                             # Verify kubeconfig
+//                             ls -l $KUBE_CONFIG
+//                             head -n 20 $KUBE_CONFIG
 
-                            # Set kubeconfig and verify connection
-                            export KUBECONFIG=$KUBE_CONFIG
-                            kubectl config view
-                            kubectl get nodes
+//                             # Set kubeconfig and verify connection
+//                             export KUBECONFIG=$KUBE_CONFIG
+//                             kubectl config view
+//                             kubectl get nodes
 
                             
-                            # Apply Kubernetes manifests
-                            kubectl apply -f k8s/persistent-volume.yml. -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/pvc-claim.yml -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/deployment-mysql.yml -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/deployment-flask.yml -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/flask-service.yml -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/mysql-service.yml -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/sql-inject-config.yml -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/storage.yml -n ${KUBE_NAMESPACE}
+//                             # Apply Kubernetes manifests
+//                             kubectl apply -f k8s/persistent-volume.yml. -n ${KUBE_NAMESPACE}
+//                             kubectl apply -f k8s/pvc-claim.yml -n ${KUBE_NAMESPACE}
+//                             kubectl apply -f k8s/deployment-mysql.yml -n ${KUBE_NAMESPACE}
+//                             kubectl apply -f k8s/deployment-flask.yml -n ${KUBE_NAMESPACE}
+//                             kubectl apply -f k8s/flask-service.yml -n ${KUBE_NAMESPACE}
+//                             kubectl apply -f k8s/mysql-service.yml -n ${KUBE_NAMESPACE}
+//                             kubectl apply -f k8s/sql-inject-config.yml -n ${KUBE_NAMESPACE}
+//                             kubectl apply -f k8s/storage.yml -n ${KUBE_NAMESPACE}
                             
-docker push ${DOCKER_IMAGE_FLASK}:${DOCKER_TAG}
+// docker push ${DOCKER_IMAGE_FLASK}:${DOCKER_TAG}
 
-                            # Verify deployments
-                            kubectl get deployments -n ${KUBE_NAMESPACE}
-                            kubectl get pods -n ${KUBE_NAMESPACE}
-                        '''
-                    }
-                }
-            }
-        }
-    }
+//                             # Verify deployments
+//                             kubectl get deployments -n ${KUBE_NAMESPACE}
+//                             kubectl get pods -n ${KUBE_NAMESPACE}
+//                         '''
+//                     }
+//                 }
+//             }
+//         }
+//     }
 
-    post {
-        always {
-            script {
-                // Clean up containers
-                sh 'docker-compose down --volumes --remove-orphans || true'
-            }
-        }
-        success {
-            echo "Build and Deployment Successful!"
-        }
-        failure {
-            script {
-                echo "Build or Deployment Failed!"
-                // Capture logs on failure
-                sh 'docker-compose logs || true'
-            }
-        }
-    }
+    // post {
+    //     always {
+    //         script {
+    //             // Clean up containers
+    //             sh 'docker-compose down --volumes --remove-orphans || true'
+    //         }
+    //     }
+    //     success {
+    //         echo "Build and Deployment Successful!"
+    //     }
+    //     failure {
+    //         script {
+    //             echo "Build or Deployment Failed!"
+    //             // Capture logs on failure
+    //             sh 'docker-compose logs || true'
+    //         }
+    //     }
+    // }
 }
