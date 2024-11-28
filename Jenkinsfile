@@ -9,9 +9,12 @@ pipeline {
         DOCKER_REGISTRY_CREDENTIALS = "dockerhub-creds"
         NAMESPACE = "jenkins"
         DOCKER_TAG = "${BUILD_NUMBER}"
-        KUBE_CONFIG = "jenkins-secret"
         PROJECT_NAME = "flask-mysql"
         DOCKER_BUILDKIT = '1'
+        REMOTE_HOST = "ubuntu@3.91.184.171"
+        REMOTE_K8S_PATH = "/home/ubuntu/k8s"
+        DEPLOY_TIMEOUT = "300"
+        VERIFY_TIMEOUT = "5"
         
     }
 
@@ -108,49 +111,71 @@ pipeline {
             }
         }
 
-        stage('Validate Kubernetes Connection') {
-    steps {
-        withCredentials([file(credentialsId: 'jenkins-secret', variable: 'KUBECONFIG')]) {
-            script {
-                try {
-                    // Check cluster connectivity
-                    sh '''
-                        export KUBECONFIG=${KUBECONFIG}
-                        kubectl cluster-info
-                        kubectl get nodes
-                        kubectl get namespace ${NAMESPACE} || kubectl create namespace ${NAMESPACE}
-                    '''
-                } catch (Exception e) {
-                    error "Failed to connect to Kubernetes cluster: ${e.message}"
-                }
-            }
-        }
-    }
-}
+        
+        
 
 stage('Deploy to Kubernetes') {
     steps {
-        withCredentials([file(credentialsId: 'jenkins-secret', variable: 'KUBECONFIG')]) {
+        sshagent(['k8s']) {
             script {
                 try {
-                    sh '''
-                        export KUBECONFIG=${KUBECONFIG}
-                        
-                        # Apply Kubernetes configurations
-                        kubectl apply -f k8s/deployment-flask.yml -n ${NAMESPACE}
-                        kubectl apply -f k8s/deployment-mysql.yml -n ${NAMESPACE}
-                        kubectl apply -f k8s/flask-service.yml -n ${NAMESPACE}
-                        kubectl apply -f k8s/mysql-service.yml -n ${NAMESPACE}
-                        kubectl apply -f k8s/persistent-volume.yml -n ${NAMESPACE}
-                        kubectl apply -f k8s/pvc-claim.yml -n ${NAMESPACE}
-                        kubectl apply -f k8s/sql-inject-config.yml -n ${NAMESPACE}
-                        kubectl apply -f k8s/storage.yml -n ${NAMESPACE}
-                        
-                        # Wait for deployments
-                        kubectl rollout status deployment/flask-app -n ${NAMESPACE} --timeout=300s
-                        kubectl rollout status deployment/mysql -n ${NAMESPACE} --timeout=300s
-                    '''
+                    // Define the k8s resources in an array for cleaner iteration
+                    def k8sResources = [
+                        'deployment-flask.yml',
+                        'deployment-mysql.yml',
+                        'flask-service.yml',
+                        'mysql-service.yml',
+                        'persistent-volume.yml',
+                        'pvc-claim.yml',
+                        'sql-inject-config.yml',
+                        'storage.yml'
+                    ]
+                    
+                    // First, copy K8s files to remote server
+                    sh """
+                        scp -o StrictHostKeyChecking=no k8s/* ubuntu@3.91.184.171:/home/ubuntu/k8s/
+                    """
+
+                    // Apply all resources with error checking
+                    k8sResources.each { resource ->
+                        echo "Applying ${resource}..."
+                        def result = sh(
+                            script: """
+                                ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 \
+                                'kubectl apply -f /home/ubuntu/k8s/${resource} -n ${NAMESPACE}'
+                            """,
+                            returnStatus: true
+                        )
+                        if (result != 0) {
+                            error "Failed to apply ${resource}"
+                        }
+                    }
+
+                    // Parallel deployment status check
+                    parallel(
+                        'Flask App': {
+                            sh """
+                                ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 \
+                                'kubectl rollout status deployment/flask-app -n ${NAMESPACE} --timeout=300s'
+                            """
+                        },
+                        'MySQL': {
+                            sh """
+                                ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 \
+                                'kubectl rollout status deployment/mysql -n ${NAMESPACE} --timeout=300s'
+                            """
+                        }
+                    )
                 } catch (Exception e) {
+                    // Log the error details
+                    echo "Deployment failed: ${e.message}"
+                    // Get additional debugging information
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 '
+                            kubectl get events -n ${NAMESPACE}
+                            kubectl describe deployments -n ${NAMESPACE}
+                        '
+                    """
                     error "Deployment failed: ${e.message}"
                 }
             }
@@ -160,15 +185,64 @@ stage('Deploy to Kubernetes') {
 
 stage('Verify Deployment') {
     steps {
-        withCredentials([file(credentialsId: 'jenkins-secret', variable: 'KUBECONFIG')]) {
+        sshagent(['k8s']) {
             script {
-                sh '''
-                    export KUBECONFIG=${KUBECONFIG}
-                    echo 'Checking pod status...'
-                    kubectl get pods -n ${NAMESPACE}
-                    echo 'Checking service status...'
-                    kubectl get services -n ${NAMESPACE}
-                '''
+                try {
+                    // Function to check pod readiness
+                    def checkPodsReady = {
+                        def podsReady = sh(
+                            script: """
+                                ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 \
+                                'kubectl get pods -n ${NAMESPACE} -o json' | \
+                                jq -r '.items[] | select(.status.phase != "Running" or ([.status.conditions[] | select(.type == "Ready")] | length == 0)) | .metadata.name'
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        return podsReady.isEmpty()
+                    }
+
+                    // Comprehensive verification
+                    timeout(time: 5, unit: 'MINUTES') {
+                        echo "Verifying deployment status..."
+                        
+                        // Check services and pods status
+                        sh """
+                            ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 '
+                                echo "=== Services Status ==="
+                                kubectl get services -n ${NAMESPACE} -o wide
+                                
+                                echo "\\n=== Pods Status ==="
+                                kubectl get pods -n ${NAMESPACE} -o wide
+                                
+                                echo "\\n=== Resource Usage ==="
+                                kubectl top pods -n ${NAMESPACE}
+                            '
+                        """
+
+                        // Wait for all pods to be ready
+                        waitUntil {
+                            return checkPodsReady()
+                        }
+
+                        // Verify endpoints
+                        sh """
+                            ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 '
+                                echo "\\n=== Endpoints Status ==="
+                                kubectl get endpoints -n ${NAMESPACE}
+                            '
+                        """
+                    }
+                } catch (Exception e) {
+                    // Collect diagnostic information
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 '
+                            echo "=== Debug Information ==="
+                            kubectl describe pods -n ${NAMESPACE}
+                            kubectl get events -n ${NAMESPACE}
+                        '
+                    """
+                    error "Verification failed: ${e.message}"
+                }
             }
         }
     }
