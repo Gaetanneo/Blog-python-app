@@ -7,9 +7,9 @@ pipeline {
         DOCKER_IMAGE_FLASK = "gaetanneo/flask-app"
         DOCKER_IMAGE_MYSQL = "gaetanneo/mysql"
         DOCKER_REGISTRY_CREDENTIALS = "dockerhub-creds"
-        KUBE_NAMESPACE = "default"
+        NAMESPACE = "jenkins"
         DOCKER_TAG = "${BUILD_NUMBER}"
-        KUBE_CONFIG = "/tmp/kubeconfig"
+        KUBE_CONFIG = credentials('kubeconfig-credentials-id')
         PROJECT_NAME = "flask-mysql"
         DOCKER_BUILDKIT = '1'
     }
@@ -95,57 +95,84 @@ pipeline {
         }
 
         stage('Docker Push') {
-    steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-            sh '''
-                echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-                docker push ${DOCKER_IMAGE_FLASK}:${DOCKER_TAG}
-                docker tag mysql:latest ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
-                docker push ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
-            '''
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                    sh '''
+                    echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                    docker push ${DOCKER_IMAGE_FLASK}:${DOCKER_TAG}
+                    docker tag mysql:latest ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
+                    docker push ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
+                '''
+                }
+            }
         }
-    }
-}
-        
 
-        stage('Deploy to Kubernetes') {
+        stages {
+        stage('Validate Kubernetes Connection') {
             steps {
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'aws-credentials-id',
-                                                    usernameVariable: 'AWS_ACCESS_KEY_ID',
-                                                    passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                        sh '''
-                            # Verify kubeconfig
-                            ls -l $KUBE_CONFIG
-                            head -n 20 $KUBE_CONFIG
-
-                            # Set kubeconfig and verify connection
-                            export KUBECONFIG=$KUBE_CONFIG
-                            kubectl config view
-                            kubectl get nodes
-
+                    withEnv(["KUBECONFIG=${KUBE_CONFIG}"]) {
+                        try {
+                            // Check cluster connectivity
+                            sh 'kubectl cluster-info'
                             
-                            # Apply Kubernetes manifests
-                            kubectl apply -f k8s/persistent-volume.yml. -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/pvc-claim.yml -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/deployment-mysql.yml -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/deployment-flask.yml -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/flask-service.yml -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/mysql-service.yml -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/sql-inject-config.yml -n ${KUBE_NAMESPACE}
-                            kubectl apply -f k8s/storage.yml -n ${KUBE_NAMESPACE}
+                            // Check nodes status
+                            sh 'kubectl get nodes'
                             
-                            docker push ${DOCKER_IMAGE_FLASK}:${DOCKER_TAG}
-
-                            # Verify deployments
-                            kubectl get deployments -n ${KUBE_NAMESPACE}
-                            kubectl get pods -n ${KUBE_NAMESPACE}
-                        '''
+                            // Create namespace if not exists
+                            sh """
+                                if ! kubectl get namespace ${NAMESPACE}; then
+                                    kubectl create namespace ${NAMESPACE}
+                                fi
+                            """
+                        } catch (Exception e) {
+                            error "Failed to connect to Kubernetes cluster: ${e.message}"
+                        }
                     }
                 }
             }
         }
-    }
+        
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    withEnv(["KUBECONFIG=${KUBE_CONFIG}"]) {
+                        try {
+                            // Example deployment
+                            sh """
+                                kubectl apply -f k8s/deployment.yaml -n ${NAMESPACE}
+                                kubectl apply -f k8s/service.yaml -n ${NAMESPACE}
+                            """
+                            
+                            // Wait for deployment
+                            sh """
+                                kubectl rollout status deployment/your-app -n ${NAMESPACE} --timeout=300s
+                            """
+                        } catch (Exception e) {
+                            error "Deployment failed: ${e.message}"
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Verify Deployment') {
+            steps {
+                script {
+                    withEnv(["KUBECONFIG=${KUBE_CONFIG}"]) {
+                        // Check pods status
+                        sh """
+                            kubectl get pods -n ${NAMESPACE}
+                            kubectl get services -n ${NAMESPACE}
+                        """
+                    }
+                }
+            }
+        }
+    }    
+
+    }       
+    
 
     // post {
     //     always {
