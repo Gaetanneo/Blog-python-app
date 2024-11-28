@@ -107,7 +107,6 @@ pipeline {
             }
         }
 
-        stages {
         stage('Validate Kubernetes Connection') {
             steps {
                 script {
@@ -171,7 +170,7 @@ pipeline {
         }
     }    
 
-    }       
+           
     
 
     // post {
