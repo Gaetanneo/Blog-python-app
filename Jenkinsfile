@@ -167,6 +167,7 @@ stage('Deploy to Kubernetes') {
                     def k8sResources = [
                         'deployment-flask.yml',
                         'deployment-mysql.yml',
+                        'env-config.yml',
                         'flask-service.yml',
                         'mysql-service.yml',
                         'persistent-volume.yml',
