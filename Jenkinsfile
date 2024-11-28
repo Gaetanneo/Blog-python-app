@@ -12,7 +12,7 @@ pipeline {
         KUBE_CONFIG = "jenkins-secret"
         PROJECT_NAME = "flask-mysql"
         DOCKER_BUILDKIT = '1'
-        PROJECT_NAME = "flask-mysql"
+        
     }
 
     stages {
@@ -138,10 +138,21 @@ pipeline {
                 script {
                     withEnv(["KUBECONFIG=${KUBE_CONFIG}"]) {
                         try {
+                            // Example deployment
                             sh """
-                                kubectl apply -f k8s/deployment.yaml -n ${NAMESPACE}
-                                kubectl apply -f k8s/service.yaml -n ${NAMESPACE}
-                                kubectl rollout status deployment/${PROJECT_NAME} -n ${NAMESPACE} --timeout=300s
+                                kubectl apply -f k8s/deployment-flask.yml -n ${NAMESPACE}
+                                kubectl apply -f k8s/deployment-mysql.yml -n ${NAMESPACE}
+                                kubectl apply -f k8s/flask-service.yml -n ${NAMESPACE}
+                                kubectl apply -f k8s/mysql-service.yml -n ${NAMESPACE}
+                                kubectl apply -f k8s/persistent-volume.yml -n ${NAMESPACE}
+                                kubectl apply -f k8s/pvc-claim.yml -n ${NAMESPACE}
+                                kubectl apply -f k8s/sql-inject-config.yml -n ${NAMESPACE}
+                                kubectl apply -f k8s/storage.yml -n ${NAMESPACE}
+                            """
+                            
+                            // Wait for deployment
+                            sh """
+                                kubectl rollout status deployment/your-app -n ${NAMESPACE} --timeout=300s
                             """
                         } catch (Exception e) {
                             error "Deployment failed: ${e.message}"

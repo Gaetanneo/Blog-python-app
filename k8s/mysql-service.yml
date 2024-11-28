@@ -7,9 +7,8 @@ metadata:
 spec:
   selector:
     name: mysql-app-pod
-  type:
+  type: ClusterIP
   ports:
-    - name: http-port
-      port: 3306
-      targetPort: 3306
-
+  - name: http-port
+    port: 3306
+    targetPort: 3306
