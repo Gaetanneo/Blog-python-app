@@ -55,7 +55,7 @@ pipeline {
                         # Wait for MySQL to be ready
                         echo "Waiting for MySQL to be ready..."
                         for i in $(seq 1 30); do
-                            if docker-compose exec -T mysql-service mysqladmin ping -h localhost --silent; then
+                            if docker-compose exec -T mysqldb mysqladmin ping -h localhost --silent; then
                                 echo "MySQL is ready!"
                                 break
                             fi
@@ -76,10 +76,10 @@ pipeline {
                         docker-compose ps
                         
                         echo "MySQL Container Logs:"
-                        docker-compose logs mysql-service
+                        docker-compose logs mysqldb
                         
                         echo "Flask Container Logs:"
-                        docker-compose logs flask-app
+                        docker-compose logs blog-app
                         
                         echo "Checking MySQL Connection..."
                         docker-compose exec -T mysql-service mysqladmin status -h localhost || exit 1
