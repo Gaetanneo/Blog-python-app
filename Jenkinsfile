@@ -110,35 +110,35 @@ pipeline {
 
         stage('Validate Kubernetes Connection') {
             steps {
-                script {
-                    withEnv(["KUBECONFIG=${KUBE_CONFIG}"]) {
-                        try {
-                            // Check cluster connectivity
-                            sh 'kubectl cluster-info'
-                            
-                            // Check nodes status
-                            sh 'kubectl get nodes'
-                            
-                            // Create namespace if not exists
-                            sh """
-                                if ! kubectl get namespace ${NAMESPACE}; then
-                                    kubectl create namespace ${NAMESPACE}
-                                fi
-                            """
-                        } catch (Exception e) {
-                            error "Failed to connect to Kubernetes cluster: ${e.message}"
-                        }
-                    }
+                withKubeConfig([credentialsId: 'jenkins-secret']) {
+                    script {
+                try {
+                    // Check cluster connectivity
+                    sh 'kubectl cluster-info'
+                    
+                    // Check nodes status
+                    sh 'kubectl get nodes'
+                    
+                    // Create namespace if not exists
+                    sh """
+                        kubectl get namespace ${NAMESPACE} || kubectl create namespace ${NAMESPACE}
+                    """
+                } catch (Exception e) {
+                    error "Failed to connect to Kubernetes cluster: ${e.message}"
                 }
             }
         }
-        
+    }
+}
+
+
+
         stage('Deploy to Kubernetes') {
             steps {
-                script {
-                    withEnv(["KUBECONFIG=${KUBE_CONFIG}"]) {
+                withKubeConfig([credentialsId: 'jenkins-secret']) {
+                    script {
                         try {
-                            // Example deployment
+                            // Apply all Kubernetes configurations
                             sh """
                                 kubectl apply -f k8s/deployment-flask.yml -n ${NAMESPACE}
                                 kubectl apply -f k8s/deployment-mysql.yml -n ${NAMESPACE}
@@ -149,10 +149,11 @@ pipeline {
                                 kubectl apply -f k8s/sql-inject-config.yml -n ${NAMESPACE}
                                 kubectl apply -f k8s/storage.yml -n ${NAMESPACE}
                             """
-                            
-                            // Wait for deployment
+                    
+                            // Wait for deployments to be ready
                             sh """
-                                kubectl rollout status deployment/your-app -n ${NAMESPACE} --timeout=300s
+                                kubectl rollout status deployment/flask-app -n ${NAMESPACE} --timeout=300s
+                                kubectl rollout status deployment/mysql -n ${NAMESPACE} --timeout=300s
                             """
                         } catch (Exception e) {
                             error "Deployment failed: ${e.message}"
@@ -161,23 +162,23 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Verify Deployment') {
             steps {
-                script {
-                    withEnv(["KUBECONFIG=${KUBE_CONFIG}"]) {
-                        // Check pods status
+                withKubeConfig([credentialsId: 'jenkins-secret']) {
+                    script {
                         sh """
+                            echo 'Checking pod status...'
                             kubectl get pods -n ${NAMESPACE}
+                            echo 'Checking service status...'
                             kubectl get services -n ${NAMESPACE}
                         """
                     }
                 }
             }
         }
-    }    
 
-           
+    }       
     
 
     // post {
