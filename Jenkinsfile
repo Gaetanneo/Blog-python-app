@@ -8,7 +8,7 @@ pipeline {
         DOCKER_IMAGE_MYSQL = "gaetanneo/mysql"
         DOCKER_REGISTRY_CREDENTIALS = "dockerhub-creds"
         KUBE_NAMESPACE = "default"
-        DOCKER_TAG = "${GIT_COMMIT}"
+        DOCKER_TAG = "${BUILD_NUMBER}"
         KUBE_CONFIG = "/tmp/kubeconfig"
         PROJECT_NAME = "flask-mysql"
         DOCKER_BUILDKIT = '1'
@@ -94,6 +94,19 @@ pipeline {
             }
         }
 
+        stage('Docker Push') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'dockerHubPassword', usernameVariable: 'dockerHubUser')]) {
+                    sh '''
+                        echo ${DOCKERHUB_CREDENTIALS_PSW} | docker login -u ${DOCKERHUB_CREDENTIALS_USR} --password-stdin"
+                        sh "docker push ${DOCKER_IMAGE_FLASK}":${DOCKER_TAG}
+                        docker tag mysql:8.0 ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
+                        docker push ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
+
+        }
+      }
+    }
+        
         stage('Push Docker Images') {
             steps {
                 script {
@@ -103,7 +116,7 @@ pipeline {
                         sh '''
                             echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
                             docker tag mysql:8.0 ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
-                            docker push ${DOCKER_IMAGE_FLASK}:${DOCKER_TAG}
+                            
                             docker push ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
                         '''
                     }
@@ -138,7 +151,7 @@ pipeline {
                             kubectl apply -f k8s/sql-inject-config.yml -n ${KUBE_NAMESPACE}
                             kubectl apply -f k8s/storage.yml -n ${KUBE_NAMESPACE}
                             
-
+docker push ${DOCKER_IMAGE_FLASK}:${DOCKER_TAG}
 
                             # Verify deployments
                             kubectl get deployments -n ${KUBE_NAMESPACE}
