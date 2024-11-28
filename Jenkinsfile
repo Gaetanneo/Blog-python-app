@@ -15,6 +15,7 @@ pipeline {
         REMOTE_K8S_PATH = "/home/ubuntu/k8s"
         DEPLOY_TIMEOUT = "300"
         VERIFY_TIMEOUT = "5"
+        KUBE_CONFIG_PATH = "~/.kube/config"
         
     }
 
@@ -121,6 +122,29 @@ stage('Deploy to Kubernetes') {
                     sh """
                         ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 'mkdir -p /home/ubuntu/k8s'
                         scp -o StrictHostKeyChecking=no k8s/* ubuntu@3.91.184.171:/home/ubuntu/k8s/
+                    """
+
+                    // Verify and setup kubectl configuration
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 '
+                            # Check if kubeconfig exists
+                            if [ ! -f ~/.kube/config ]; then
+                                mkdir -p ~/.kube
+                                sudo cp /etc/kubernetes/admin.conf ~/.kube/config
+                                sudo chown -R ubuntu:ubuntu ~/.kube
+                            fi
+                            
+                            # Verify kubectl works
+                            kubectl cluster-info
+
+                            # Create namespace if it doesn't exist
+                            if ! kubectl get namespace ${NAMESPACE}; then
+                                echo "Creating namespace: ${NAMESPACE}"
+                                kubectl create namespace ${NAMESPACE}
+                            else
+                                echo "Namespace ${NAMESPACE} already exists"
+                            fi
+                        '
                     """
 
                     // Verify and setup kubectl configuration
