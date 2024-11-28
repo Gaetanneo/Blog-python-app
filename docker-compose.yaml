@@ -18,7 +18,9 @@ services:
 
   mysql:
     environment:
-      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_PASSWORD=password
+      - MYSQL_USER=gaetan
+
     volumes:
       - ./query:/docker-entrypoint-initdb.d
       - two-tier:/var/lib/mysql
