@@ -96,16 +96,18 @@ pipeline {
 
         stage('Docker Push') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'dockerHubPassword', usernameVariable: 'dockerHubUser')]) {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
                     sh '''
                         echo ${DOCKERHUB_CREDENTIALS_PSW} | docker login -u ${DOCKERHUB_CREDENTIALS_USR} --password-stdin"
                         sh "docker push ${DOCKER_IMAGE_FLASK}":${DOCKER_TAG}
+                        docker push ${DOCKER_IMAGE_FLASK}:latest
                         docker tag mysql:8.0 ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
                         docker push ${DOCKER_IMAGE_MYSQL}:${DOCKER_TAG}
+                    '''
 
+                }
+            }
         }
-      }
-    }
         
         stage('Push Docker Images') {
             steps {
