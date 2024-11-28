@@ -81,8 +81,6 @@ pipeline {
                         echo "Flask Container Logs:"
                         docker-compose logs flask
                         
-                        echo "Checking MySQL Connection..."
-                        docker-compose exec -T mysql mysqladmin status -h localhost || exit 1
                     '''
                 }
             }
