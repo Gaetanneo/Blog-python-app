@@ -9,7 +9,7 @@ pipeline {
         DOCKER_REGISTRY_CREDENTIALS = "dockerhub-creds"
         NAMESPACE = "jenkins"
         DOCKER_TAG = "${BUILD_NUMBER}"
-        KUBE_CONFIG = credentials('kubeconfig-credentials-id')
+        KUBE_CONFIG = credentials('jenkins-secret')
         PROJECT_NAME = "flask-mysql"
         DOCKER_BUILDKIT = '1'
     }
