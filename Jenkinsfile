@@ -112,13 +112,33 @@ pipeline {
         }
 
         
-        
-
 stage('Deploy to Kubernetes') {
     steps {
         sshagent(['k8s']) {
             script {
                 try {
+                    // Create remote directory and copy files
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 'mkdir -p /home/ubuntu/k8s'
+                        scp -o StrictHostKeyChecking=no k8s/* ubuntu@3.91.184.171:/home/ubuntu/k8s/
+                    """
+
+                    // Verify and setup kubectl configuration
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 '
+                            # Check if kubeconfig exists
+                            if [ ! -f ~/.kube/config ]; then
+                                mkdir -p ~/.kube
+                                # You might need to adjust this path based on where your actual kubeconfig is stored
+                                sudo cp /etc/kubernetes/admin.conf ~/.kube/config
+                                sudo chown -R ubuntu:ubuntu ~/.kube
+                            fi
+                            
+                            # Verify kubectl works
+                            kubectl cluster-info
+                        '
+                    """
+
                     // Define the k8s resources in an array for cleaner iteration
                     def k8sResources = [
                         'deployment-flask.yml',
@@ -131,18 +151,13 @@ stage('Deploy to Kubernetes') {
                         'storage.yml'
                     ]
                     
-                    // First, copy K8s files to remote server
-                    sh """
-                        scp -o StrictHostKeyChecking=no k8s/* ubuntu@3.91.184.171:/home/ubuntu/k8s/
-                    """
-
                     // Apply all resources with error checking
                     k8sResources.each { resource ->
                         echo "Applying ${resource}..."
                         def result = sh(
                             script: """
                                 ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 \
-                                'kubectl apply -f /home/ubuntu/k8s/${resource} -n ${NAMESPACE}'
+                                'cd /home/ubuntu/k8s && kubectl apply -f ${resource} -n ${NAMESPACE}'
                             """,
                             returnStatus: true
                         )
@@ -166,14 +181,27 @@ stage('Deploy to Kubernetes') {
                             """
                         }
                     )
+
                 } catch (Exception e) {
                     // Log the error details
                     echo "Deployment failed: ${e.message}"
                     // Get additional debugging information
                     sh """
                         ssh -o StrictHostKeyChecking=no ubuntu@3.91.184.171 '
+                            echo "=== Kubernetes Configuration ==="
+                            kubectl config view --minify
+                            
+                            echo "\\n=== Cluster Status ==="
+                            kubectl cluster-info
+                            
+                            echo "\\n=== Events ==="
                             kubectl get events -n ${NAMESPACE}
+                            
+                            echo "\\n=== Deployments ==="
                             kubectl describe deployments -n ${NAMESPACE}
+                            
+                            echo "\\n=== Pods ==="
+                            kubectl get pods -n ${NAMESPACE}
                         '
                     """
                     error "Deployment failed: ${e.message}"
@@ -182,6 +210,7 @@ stage('Deploy to Kubernetes') {
         }
     }
 }
+
 
 stage('Verify Deployment') {
     steps {
