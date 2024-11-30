@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+  labels:
+    app: flask-mysql-app
+spec:
+  selector:
+    name: mysql-app-pod
+  type: ClusterIP
+  ports:
+  - name: http-port
+    port: 3306
+    targetPort: 3306

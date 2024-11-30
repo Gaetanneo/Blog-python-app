@@ -17,10 +17,11 @@ spec:
         name: flask-app-pod
     spec:
       containers:
-      - name: web-app
-        image: gaetanneo/flask-mysql-app:latest
-        ports:
-        - containerPort: 5000
-        envFrom:
-        - configMapRef:
-            name: env-config-app
+        - name: web-app
+          image: thanandock/flask-mysql-app:1.0.0
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: env-config-app
+
