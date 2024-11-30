@@ -26,17 +26,17 @@ pipeline {
             }
         }
 
-        // stage('Clean Environment') {
-        //     steps {
-        //         script {
-        //             // Clean up any existing containers and volumes
-        //             sh '''
-        //                 docker-compose down --volumes --remove-orphans
-        //                 docker system prune -f
-        //             '''
-        //         }
-        //     }
-        // }
+        stage('Clean Environment') {
+            steps {
+                script {
+                    // Clean up any existing containers and volumes
+                    sh '''
+                        docker-compose down --volumes --remove-orphans
+                        docker system prune -f
+                    '''
+                }
+            }
+        }
 
         stage('Run Docker Compose Build') {
             steps {
@@ -113,7 +113,7 @@ pipeline {
         }
         stage('Deploy to K8s Cluster') {
             steps {
-                withCredentials([string(credentialsId: 'secret_token', variable: 'KUBE_TOKEN')]) {
+                withCredentials([string(credentialsId: 'SECRET_TOKEN', variable: 'KUBE_TOKEN')]) {
                     sh '''
                     curl -LO "https://storage.googleapis.com/kubernetes-release/release/v1.20.5/bin/linux/amd64/kubectl"
                     chmod u+x ./kubectl
